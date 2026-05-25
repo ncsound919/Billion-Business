@@ -1,0 +1,66 @@
+-- =============================================================================
+-- RLS Policies Reference — BB-Tech ↔ Northside Smoke Compliance Tables
+-- =============================================================================
+-- Location: supabase/migrations/20250525000001_rls_policies.sql
+-- Purpose: Tenant isolation for compliance data across the Billion Business
+--          acquisition portfolio (BB-Tech research pipeline → Northside Smoke UI)
+-- =============================================================================
+
+-- === Overview ===
+-- Strategy:
+--   1. Tenants table maps subscription tiers (Boutique/Enterprise/Autonomous)
+--      to isolated data domains
+--   2. Each user profile has a tenant_id
+--   3. Compliance tables (compliance_reviews, research_results, audit_logs)
+--      store tenant_id for row-level tenant isolation
+--   4. RLS policies check: row.tenant_id = get_user_tenant_id()
+--   5. Service role bypasses all RLS for cross-system workflows
+
+-- === Key Tables ===
+-- | Table               | Type     | Tenant Column | Notes                          |
+-- |---------------------|----------|---------------|--------------------------------|
+-- | tenants             | Reference| id (PK)       | Maps to subscription tiers     |
+-- | profiles            | Existing | tenant_id     | Added via ALTER TABLE          |
+-- | compliance_reviews  | New      | tenant_id     | FK to tenants                  |
+-- | research_results    | New      | tenant_id     | FK to tenants, indexed         |
+-- | audit_logs          | Existing | tenant_id     | FK to tenants, indexed         |
+-- | policies            | Existing | (user-level)  | Maintains existing RLS         |
+
+-- === Policy Patterns ===
+-- 1. Service Role Bypass (all operations):
+--    USING ((SELECT auth.role() = 'service_role'))
+--    WITH CHECK ((SELECT auth.role() = 'service_role'))
+--
+-- 2. Tenant Isolation (SELECT/INSERT/UPDATE):
+--    tenant_id = public.get_user_tenant_id()
+--
+-- 3. Helper Function:
+--    CREATE OR REPLACE FUNCTION public.get_user_tenant_id()
+--    RETURNS UUID LANGUAGE SQL STABLE AS $$
+--      SELECT tenant_id FROM public.profiles WHERE id = auth.uid();
+--    $$;
+
+-- === Data Flow ===
+-- BB-Tech (research pipeline, service_role)
+--   │
+--   ├─→ inserts research_results (tenant_id from workflow context)
+--   ├─→ inserts compliance_reviews (via webhook/callback)
+--   └─→ inserts audit_logs (tenant-scoped)
+--         │
+--         ▼
+-- Northside Smoke UI (authenticated user)
+--   │
+--   ├─→ SELECT compliance_reviews WHERE tenant_id = user's tenant
+--   ├─→ SELECT research_results WHERE tenant_id = user's tenant
+--   └─→ SELECT audit_logs WHERE tenant_id = user's tenant
+--         │
+--         ▼
+--   User sees only their tenant's data
+
+-- === Full Policy List ===
+-- 1. tenants: authenticated users can SELECT, service_role manages
+-- 2. profiles: users read/update own, service_role full access
+-- 3. compliance_reviews: tenant isolation + service_role bypass
+-- 4. research_results: tenant isolation + service_role bypass
+-- 5. audit_logs: tenant isolation + user-level fallback + service_role bypass
+-- 6. policies: service_role bypass + existing user-level isolation
