@@ -42,6 +42,8 @@ CREATE POLICY "Service role manages tenants" ON public.tenants
 ALTER TABLE public.profiles
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES public.tenants(id);
 
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
 -- Update RLS on profiles to be tenant-aware
 -- Drop existing user-only policy to add tenant-aware version
 DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
@@ -96,6 +98,11 @@ CREATE POLICY "Users update own tenant compliance_reviews" ON public.compliance_
         tenant_id = public.get_user_tenant_id()
     );
 
+CREATE POLICY "Users delete own tenant compliance_reviews" ON public.compliance_reviews
+    FOR DELETE USING (
+        tenant_id = public.get_user_tenant_id()
+    );
+
 -- =============================================================================
 -- 5. Research Results table
 -- Stores research pipeline results from BB-Tech
@@ -140,6 +147,11 @@ CREATE POLICY "Users update own tenant research_results" ON public.research_resu
         tenant_id = public.get_user_tenant_id()
     );
 
+CREATE POLICY "Users delete own tenant research_results" ON public.research_results
+    FOR DELETE USING (
+        tenant_id = public.get_user_tenant_id()
+    );
+
 -- =============================================================================
 -- 6. Add tenant_id to existing audit_logs table
 -- Enables tenant-scoped audit trail alongside existing user-level tracking
@@ -148,6 +160,8 @@ ALTER TABLE public.audit_logs
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES public.tenants(id);
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_id ON public.audit_logs(tenant_id);
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Update RLS on audit_logs to support both service role and tenant isolation
 DROP POLICY IF EXISTS "Audit logs access control" ON public.audit_logs;
