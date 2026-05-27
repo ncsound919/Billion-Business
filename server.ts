@@ -319,7 +319,13 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start server:", err);
-  process.exit(1);
-});
+// Export app for serverless/testing environments
+export { app };
+
+// Only start server if this is the main entry point
+if (import.meta.url === `file://${process.argv[1]}`) {
+  startServer().catch((err) => {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  });
+}
