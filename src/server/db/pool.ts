@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 
 let pgPool: pg.Pool | null = null;
+export const getPool = () => pgPool;
 
 // Initialize database
 export const initDb = async () => {

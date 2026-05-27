@@ -9,7 +9,7 @@ import authRouter from "./src/server/routes/auth.ts";
 import scansRouter from "./src/server/routes/scans.ts";
 import billingRouter from "./src/server/routes/billing.ts";
 import orgsRouter from "./src/server/routes/orgs.ts";
-import { initDb, query } from "./src/server/db/pool.ts";
+import { initDb, query, getPool } from "./src/server/db/pool.ts";
 import passport from "passport";
 import cweRouter from "./src/server/routes/cweCatalog.ts";
 import { csrfMiddleware, authMiddleware } from "./src/server/middleware/auth.ts";
@@ -197,7 +197,10 @@ async function startServer() {
   async function shutdown() {
     console.log("Shutting down gracefully...");
     server.close();
-    const { default: pg } = await import("pg");
+    const pool = getPool();
+    if (pool) {
+      await pool.end().catch((err) => console.error("Pool drain error:", err));
+    }
     process.exit(0);
   }
   process.on("SIGTERM", shutdown);

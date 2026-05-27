@@ -31,8 +31,9 @@ router.get(
   "/github/callback",
   passport.authenticate("github", { failureRedirect: "/login?error=auth_failed" }),
   (req: Request, res: Response) => {
-    const user = (req.user as any)?.user;
-    const token = (req.user as any)?.token;
+    const authResult = req.user as { user?: unknown; token?: string } | undefined;
+    const user = authResult?.user;
+    const token = authResult?.token;
 
     if (!user || !token) {
       return res.redirect("/login?error=token_generation_failed");

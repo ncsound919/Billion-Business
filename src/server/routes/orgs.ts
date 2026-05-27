@@ -6,7 +6,7 @@
 import express from "express";
 import { authMiddleware, orgAccessMiddleware } from "../middleware/auth.ts";
 import { query } from "../db/pool.ts";
-import { PLAN_LIMITS } from "../config/planLimits.ts";
+import { getPlanLimit } from "../config/planLimits.ts";
 const { Router } = express;
 type Request = express.Request;
 type Response = express.Response;
@@ -143,7 +143,7 @@ router.get("/:id/usage", authMiddleware, orgAccessMiddleware, async (req: Reques
     }
 
     const planTier = orgRows[0].plan_tier || "free";
-    const limit = (PLAN_LIMITS as any)[planTier]?.scansPerMonth || 3;
+    const limit = getPlanLimit(planTier, "scansPerMonth");
     const scansUsed = parseInt(scanRows[0].count, 10) || 0;
 
     res.json({

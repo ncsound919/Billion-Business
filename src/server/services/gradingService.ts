@@ -2,14 +2,13 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import type { HealthReport } from "../../types.ts";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY environment variable is required");
+function getGeminiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY environment variable is required");
+  }
+  return new GoogleGenAI({ apiKey });
 }
-
-const client = new GoogleGenAI({
-  apiKey: GEMINI_API_KEY,
-});
 
 const healthReportSchema = z.object({
   repoOwner: z.string(),
@@ -127,8 +126,19 @@ export interface GradeInput {
   repo: string;
 }
 
+interface RepoData {
+  repoMeta?: Record<string, unknown> | null;
+  packageJsonStr?: string;
+  readmeStr?: string;
+  fileList?: string[];
+}
+
 export class GradingService {
-  static async gradeRepo(input: GradeInput, repoData?: any): Promise<HealthReport> {
+  static async gradeRepo(
+    input: GradeInput,
+    repoData?: RepoData | null
+  ): Promise<HealthReport> {
+    const client = getGeminiClient();
     const prompt = this.buildGradingPrompt(input, repoData);
 
     const response = await client.models.generateContent({
@@ -148,7 +158,7 @@ export class GradingService {
     return report as HealthReport;
   }
 
-  private static buildGradingPrompt(input: GradeInput, repoData?: any): string {
+  private static buildGradingPrompt(input: GradeInput, repoData?: RepoData | null): string {
     const truncatedData = repoData ? {
       ...repoData,
       readmeStr: repoData.readmeStr?.slice(0, 10000) || "",

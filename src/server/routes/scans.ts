@@ -179,6 +179,15 @@ router.get("/:id", authMiddleware, async (req: Request, res: Response) => {
 
     const scan = rows[0];
 
+    let report: unknown = scan.report;
+    if (typeof report === "string") {
+      try {
+        report = JSON.parse(report);
+      } catch {
+        report = { status: "error", error: "Malformed report data" };
+      }
+    }
+
     res.json({
       id: scan.id,
       repoUrl: scan.repo_url,
@@ -186,7 +195,7 @@ router.get("/:id", authMiddleware, async (req: Request, res: Response) => {
       repo: scan.name,
       score: scan.score,
       grade: scan.grade_category,
-      report: typeof scan.report === "string" ? JSON.parse(scan.report) : scan.report,
+      report,
       createdAt: scan.created_at,
       updatedAt: scan.updated_at,
     });

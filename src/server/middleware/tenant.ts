@@ -5,7 +5,7 @@
 
 import express from "express";
 import { query } from "../db/pool.ts";
-import { PLAN_LIMITS } from "../config/planLimits.ts";
+import { PLAN_LIMITS, getPlanLimit } from "../config/planLimits.ts";
 type Request = express.Request;
 type Response = express.Response;
 type NextFunction = express.NextFunction;
@@ -35,7 +35,7 @@ export const scanLimitMiddleware = async (
     }
 
     const planTier = orgRows[0].plan_tier || "free";
-    const limit = (PLAN_LIMITS as any)[planTier]?.scansPerMonth || 3;
+    const limit = getPlanLimit(planTier, "scansPerMonth");
 
     // Count scans this month
     const { rows: countRows } = await query(
@@ -47,7 +47,7 @@ export const scanLimitMiddleware = async (
     const scansThisMonth = parseInt(countRows[0].count, 10) || 0;
 
     // Attach limit info to request for response headers
-    (req as any).scanLimit = {
+    (req as Request & { scanLimit?: Record<string, unknown> }).scanLimit = {
       used: scansThisMonth,
       total: limit,
       remaining: Math.max(0, limit - scansThisMonth),
@@ -98,7 +98,7 @@ export const apiRateLimitMiddleware = async (
     }
 
     const planTier = orgRows[0].plan_tier || "free";
-    const limit = (PLAN_LIMITS as any)[planTier]?.apiCallsPerHour || 0;
+    const limit = getPlanLimit(planTier, "apiCallsPerHour");
 
     if (limit === 0) {
       return res.status(403).json({
@@ -146,11 +146,11 @@ export const limitHeadersMiddleware = (
   res: Response,
   next: NextFunction
 ) => {
-  const scanLimit = (req as any).scanLimit;
+  const scanLimit = (req as Request & { scanLimit?: { total: number; used: number; remaining: number } }).scanLimit;
   if (scanLimit) {
-    res.setHeader("X-RateLimit-Limit", scanLimit.total);
-    res.setHeader("X-RateLimit-Used", scanLimit.used);
-    res.setHeader("X-RateLimit-Remaining", scanLimit.remaining);
+    res.setHeader("X-RateLimit-Limit", String(scanLimit.total));
+    res.setHeader("X-RateLimit-Used", String(scanLimit.used));
+    res.setHeader("X-RateLimit-Remaining", String(scanLimit.remaining));
   }
   next();
 };

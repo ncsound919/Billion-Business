@@ -20,3 +20,10 @@ export const PLAN_LIMITS = {
     teamMembers: Infinity,
   },
 } as const;
+
+export type PlanTier = keyof typeof PLAN_LIMITS;
+
+export function getPlanLimit(planTier: string | undefined, key: keyof typeof PLAN_LIMITS.free): number {
+  const tier = (planTier || "free") as PlanTier;
+  return PLAN_LIMITS[tier]?.[key] ?? 3;
+}

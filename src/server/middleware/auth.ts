@@ -43,8 +43,8 @@ export const csrfMiddleware = (
     return next();
   }
 
-  // Skip if Authorization header is present (API clients)
-  if (req.headers.authorization) {
+  // Skip if Authorization header is a Bearer token (API clients, not browser-driven)
+  if (req.headers.authorization?.startsWith("Bearer ")) {
     return next();
   }
 
@@ -52,8 +52,12 @@ export const csrfMiddleware = (
   const origin = req.headers.origin;
   const referer = req.headers.referer;
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const isDev = process.env.NODE_ENV !== "production";
 
-  const allowedOrigins = [frontendUrl, "http://localhost:5173", "http://localhost:3000"];
+  const allowedOrigins = [frontendUrl, "http://localhost:5173"];
+  if (isDev) {
+    allowedOrigins.push("http://localhost:3000");
+  }
 
   const requestOrigin = origin || referer;
   if (!requestOrigin) {
