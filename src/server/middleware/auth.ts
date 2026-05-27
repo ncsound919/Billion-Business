@@ -27,6 +27,20 @@ declare global {
  * Middleware to authenticate via JWT or API Key
  * Sets req.userId and req.orgId on success
  */
+function parseCookies(header: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+  for (const part of header.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx > -1) {
+      const name = part.slice(0, eqIdx).trim();
+      const val = part.slice(eqIdx + 1).trim();
+      cookies[name] = decodeURIComponent(val);
+    }
+  }
+  return cookies;
+}
+
 export const authMiddleware = async (
   req: Request,
   res: Response,
@@ -34,31 +48,36 @@ export const authMiddleware = async (
 ) => {
   try {
     const authHeader = req.headers.authorization;
+    const cookies = parseCookies(req.headers.cookie);
+    const cookieToken = cookies["token"];
 
-    if (!authHeader) {
-      return res.status(401).json({ error: "Missing authorization header" });
+    // Check Authorization header first, then cookie
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7)
+      : cookieToken || undefined;
+
+    if (!token) {
+      return res.status(401).json({ error: "Missing authorization" });
     }
 
-    // JWT Bearer token
-    if (authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      try {
-        const payload = verifyToken(token);
-        req.userId = payload.userId;
-        req.orgId = payload.orgId;
-        req.authType = "jwt";
-        return next();
-      } catch (err) {
+    // Try JWT
+    try {
+      const payload = verifyToken(token);
+      req.userId = payload.userId;
+      req.orgId = payload.orgId;
+      req.authType = "jwt";
+      return next();
+    } catch (err) {
+      // If it wasn't an API key attempt either, return 401
+      if (!authHeader?.startsWith("Bearer gr_")) {
         return res.status(401).json({ error: "Invalid token" });
       }
     }
 
-    // API Key
-    if (authHeader.startsWith("Bearer gr_")) {
+    // API Key (only via Authorization header, not cookie)
+    if (authHeader?.startsWith("Bearer gr_")) {
       const apiKey = authHeader.substring(7);
-
       try {
-        // Look up API key by hash in database
         const keyHash = ApiKeyService.hashKey(apiKey);
         const { rows } = await query(
           `SELECT id, org_id, user_id FROM api_keys WHERE key_hash = $1`,
@@ -75,7 +94,6 @@ export const authMiddleware = async (
         req.userId = apiKeyRecord.user_id;
         req.authType = "api-key";
 
-        // Update last_used_at asynchronously (don't block response)
         query(`UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, [
           apiKeyRecord.id,
         ]).catch(console.error);

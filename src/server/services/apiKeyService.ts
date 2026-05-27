@@ -40,6 +40,9 @@ export class ApiKeyService {
    */
   static verifyKey(key: string, hash: string): boolean {
     const computedHash = this.hashKey(key);
+    if (computedHash.length !== hash.length) {
+      return false;
+    }
     return crypto.timingSafeEqual(
       Buffer.from(computedHash),
       Buffer.from(hash)

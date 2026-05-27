@@ -11,8 +11,12 @@ type Request = express.Request;
 type Response = express.Response;
 import { query } from "../db/pool";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-04-22",
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+if (!STRIPE_SECRET_KEY) {
+  throw new Error("STRIPE_SECRET_KEY environment variable is required");
+}
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  apiVersion: "2026-04-22.dahlia",
 });
 
 const router = Router();

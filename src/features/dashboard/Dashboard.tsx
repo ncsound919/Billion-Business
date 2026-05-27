@@ -4,6 +4,8 @@ import { LogOut, Plus, Search, Zap, AlertCircle, RefreshCw } from "lucide-react"
 import ScoreGauge from "../../components/ScoreGauge";
 import QuickWinsList from "../../components/QuickWinsList";
 import RoadmapBoard from "../../components/RoadmapBoard";
+import type { HealthReport, QuickWin, RoadmapItem, IsoCompliance } from "../../types";
+import IsoComplianceCert from "../../components/IsoComplianceCert";
 
 interface Scan {
   id: string;
@@ -15,6 +17,11 @@ interface Scan {
   createdAt: string;
 }
 
+interface ScanDetail extends Scan {
+  report: HealthReport | null;
+  compliance?: IsoCompliance | null;
+}
+
 interface DashboardProps {
   onLogout: () => void;
 }
@@ -22,87 +29,88 @@ interface DashboardProps {
 export default function Dashboard({ onLogout }: DashboardProps) {
   const { isAuthenticated } = useAuth();
   const [scans, setScans] = useState<Scan[]>([]);
-  const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
+  const [selectedScan, setSelectedScan] = useState<ScanDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRescanning, setIsRescanning] = useState(false);
+  const [completedWins, setCompletedWins] = useState<string[]>([]);
+
+  const filteredScans = () =>
+    scans.filter(
+      (s) =>
+        s.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.repo.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const fetchScans = async () => {
-      try {
-        setIsLoading(true);
-        // In a real app, this would fetch from your API
-        // For demo purposes, we'll use mock data
-        const mockScans: Scan[] = [
-          {
-            id: "1",
-            repoUrl: "https://github.com/vercel/next.js",
-            owner: "vercel",
-            repo: "next.js",
-            score: 87,
-            grade: "B",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: "2",
-            repoUrl: "https://github.com/facebook/react",
-            owner: "facebook",
-            repo: "react",
-            score: 92,
-            grade: "A",
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-          },
-        ];
-        setScans(mockScans);
-        setSelectedScan(mockScans[0]);
-      } catch (err) {
-        setError("Failed to load scans. Please try again.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchScans();
+    fetch("/api/v1/scans", { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch scans");
+        return res.json();
+      })
+      .then((data) => {
+        const list: Scan[] = (data.scans || []).map((s: Record<string, unknown>) => ({
+          id: s.id as string,
+          repoUrl: s.repo_url as string,
+          owner: s.owner as string,
+          repo: s.name as string,
+          score: (s.score as number) ?? 0,
+          grade: (s.grade_category as string) ?? "N/A",
+          createdAt: s.created_at as string,
+        }));
+        setScans(list);
+        if (list.length > 0) {
+          fetchDetail(list[0].id);
+        }
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setIsLoading(false));
   }, [isAuthenticated]);
+
+  const fetchDetail = async (id: string) => {
+    try {
+      const [detailRes, complianceRes] = await Promise.all([
+        fetch(`/api/v1/scans/${id}`, { credentials: "include" }),
+        fetch(`/api/v1/scans/${id}/compliance`, { credentials: "include" }),
+      ]);
+      if (!detailRes.ok) return;
+      const detail = await detailRes.json();
+      const compliance = complianceRes.ok ? await complianceRes.json() : null;
+      setSelectedScan({ ...detail, compliance } as ScanDetail);
+    } catch {
+      // silently fail detail fetch
+    }
+  };
+
+  const handleSelectScan = (scan: Scan) => {
+    setSelectedScan(null);
+    fetchDetail(scan.id);
+  };
 
   const handleRescan = async () => {
     if (!selectedScan) return;
-
     setIsRescanning(true);
     setError(null);
     try {
-      // In a real app, this would call your API to re-scan the repository
-      // For demo purposes, we'll simulate a re-scan with updated data
-      const updatedScore = Math.max(50, Math.min(100, selectedScan.score + Math.floor(Math.random() * 10) - 5));
-      const updatedGrade = updatedScore >= 90 ? "A" : updatedScore >= 70 ? "B" : updatedScore >= 50 ? "C" : "D";
-
-      const updatedScan = {
-        ...selectedScan,
-        score: updatedScore,
-        grade: updatedGrade,
-        createdAt: new Date().toISOString(),
-      };
-
-      // Update the scans array
-      setScans(scans.map(scan => scan.id === selectedScan.id ? updatedScan : scan));
-      setSelectedScan(updatedScan);
+      const res = await fetch("/api/v1/scans", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoUrl: selectedScan.repoUrl }),
+      });
+      if (!res.ok) throw new Error("Failed to submit rescan");
     } catch (err) {
-      setError("Failed to re-scan repository. Please try again.");
+      setError(err instanceof Error ? err.message : "Failed to re-scan");
     } finally {
       setIsRescanning(false);
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-        <p>Please log in to view your dashboard.</p>
-      </div>
-    );
-  }
+  const quickWins: QuickWin[] = selectedScan?.report?.quickWins ?? [];
+  const roadmap: RoadmapItem[] = selectedScan?.report?.roadmap ?? [];
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -168,7 +176,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     </div>
                   </div>
                 </div>
-              ) : filteredScans.length === 0 ? (
+              ) : filteredScans().length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-slate-400 text-sm mb-4">No scans found</p>
                   <button className="text-yellow-400 hover:text-yellow-300 transition flex items-center gap-2 mx-auto">
@@ -178,10 +186,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredScans.map((scan) => (
+                  {filteredScans().map((scan) => (
                     <button
                       key={scan.id}
-                      onClick={() => setSelectedScan(scan)}
+                      onClick={() => handleSelectScan(scan)}
                       className={`w-full text-left p-3 rounded-lg transition ${selectedScan?.id === scan.id ? "bg-slate-700" : "hover:bg-slate-700/50"}`}
                     >
                       <div className="flex justify-between items-center">
@@ -238,24 +246,36 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     </div>
                   )}
 
-                  {/* Mock report sections */}
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="bg-slate-700 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-slate-400 mb-2">Security</h3>
-                      <p className="text-2xl font-bold">92%</p>
-                    </div>
-                    <div className="bg-slate-700 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-slate-400 mb-2">Quality</h3>
-                      <p className="text-2xl font-bold">88%</p>
-                    </div>
-                    <div className="bg-slate-700 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-slate-400 mb-2">Market</h3>
-                      <p className="text-2xl font-bold">95%</p>
-                    </div>
-                  </div>
+                  {selectedScan.report ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-4 mb-6">
+                        <div className="bg-slate-700 p-4 rounded-lg">
+                          <h3 className="text-sm font-medium text-slate-400 mb-2">Security</h3>
+                          <p className="text-2xl font-bold">{selectedScan.report.security.vulnerabilityCount > 0 ? Math.max(10, 100 - selectedScan.report.security.vulnerabilityCount * 15) : 85}%</p>
+                        </div>
+                        <div className="bg-slate-700 p-4 rounded-lg">
+                          <h3 className="text-sm font-medium text-slate-400 mb-2">Quality</h3>
+                          <p className="text-2xl font-bold">{selectedScan.report.quality.readmeScore}%</p>
+                        </div>
+                        <div className="bg-slate-700 p-4 rounded-lg">
+                          <h3 className="text-sm font-medium text-slate-400 mb-2">Market</h3>
+                          <p className="text-2xl font-bold">{selectedScan.report.market.benchmarks.starRatingPercentile}%</p>
+                        </div>
+                      </div>
 
-                  <QuickWinsList />
-                  <RoadmapBoard />
+                      <QuickWinsList quickWins={quickWins} completedWins={completedWins} onToggleWin={(id) => setCompletedWins(prev => prev.includes(id) ? prev.filter(w => w !== id) : [...prev, id])} />
+                      <RoadmapBoard roadmap={roadmap} />
+                      {selectedScan.compliance && (
+                        <IsoComplianceCert
+                          compliance={selectedScan.compliance}
+                          repoOwner={selectedScan.owner}
+                          repoName={selectedScan.repo}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-slate-400 text-center py-8">Loading report...</p>
+                  )}
                 </div>
               </div>
             ) : (

@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useAuth } from "./AuthContext";
 import { Github, AlertCircle } from "lucide-react";
 
 interface LoginProps {
@@ -7,21 +6,13 @@ interface LoginProps {
 }
 
 export default function Login({ onBack }: LoginProps) {
-  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGitHubLogin = async () => {
+  const handleGitHubLogin = () => {
     setIsLoading(true);
     setError(null);
-    try {
-      // Redirect to GitHub OAuth
-      window.location.href = `${import.meta.env.VITE_API_URL || window.location.origin}/api/auth/github`;
-    } catch (err) {
-      setError("Failed to initiate GitHub login. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    window.location.href = "/api/v1/auth/github";
   };
 
   return (

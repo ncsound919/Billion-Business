@@ -9,6 +9,7 @@ import { generateToken } from "../auth/jwt.ts";
 import { query } from "../db/pool.ts";
 import { ApiKeyService } from "../services/apiKeyService.ts";
 import { authMiddleware } from "../middleware/auth.ts";
+import { githubAuth } from "../auth/github.ts";
 const { Router } = express;
 type Request = express.Request;
 type Response = express.Response;
@@ -16,7 +17,13 @@ type Response = express.Response;
 const router = Router();
 
 /**
- * POST /api/v1/auth/github
+ * GET /api/v1/auth/github
+ * Initiate GitHub OAuth flow
+ */
+router.get("/github", githubAuth);
+
+/**
+ * GET /api/v1/auth/github/callback
  * GitHub OAuth callback endpoint
  * Receives code from GitHub, exchanges for access token
  */

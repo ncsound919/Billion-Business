@@ -17,7 +17,7 @@ function App() {
       <Router>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage onLogin={() => window.location.href = "/login"} />} />
             <Route path="/login" element={<Login onBack={() => window.history.back()} />} />
             <Route
               path="/dashboard"

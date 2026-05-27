@@ -136,6 +136,9 @@ CREATE INDEX idx_usage_log_user ON usage_log(user_id);
 CREATE INDEX idx_scan_queue_status ON scan_queue(status);
 CREATE INDEX idx_scan_queue_created ON scan_queue(created_at DESC);
 
+-- Phase 3: ISO 5055 Compliance
+ALTER TABLE scans ADD COLUMN IF NOT EXISTS compliance_report JSONB;
+
 CREATE INDEX idx_notifications_org ON notifications_config(org_id);
 CREATE INDEX idx_subscriptions_org ON subscriptions(org_id);
 CREATE INDEX idx_subscriptions_stripe_id ON subscriptions(stripe_subscription_id);

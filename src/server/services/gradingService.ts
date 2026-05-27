@@ -1,11 +1,6 @@
-/**
- * Grading Service
- * Wraps Gemini API and orchestrates repo grading
- */
-
 import { GoogleGenAI } from "@google/genai";
-import { HealthReport } from "../../types.ts";
 import { z } from "zod";
+import type { HealthReport } from "../../types.ts";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
@@ -16,62 +11,114 @@ const client = new GoogleGenAI({
   apiKey: GEMINI_API_KEY,
 });
 
-// Define schema for HealthReport
 const healthReportSchema = z.object({
-  score: z.number().min(0).max(100),
-  grade: z.string().regex(/^[A-F]$/),
+  repoOwner: z.string(),
+  repoName: z.string(),
+  overallScore: z.number().min(0).max(100),
+  gradeCategory: z.string(),
+  mainLanguage: z.string(),
+  starsCount: z.number().min(0),
+  forksCount: z.number().min(0),
+  openIssuesCount: z.number().min(0),
+  lastPushedAt: z.string(),
+  summary: z.string(),
   security: z.object({
-    score: z.number().min(0).max(100),
-    findings: z.array(z.any()),
-    summary: z.string()
+    secretLeakDetected: z.boolean(),
+    secretsDetails: z.array(z.string()),
+    vulnerabilityCount: z.number().min(0),
+    highestSeverity: z.enum(["Low", "Medium", "High", "Critical", "None"]),
+    vulnerabilities: z.array(z.object({
+      package: z.string(),
+      severity: z.enum(["Low", "Medium", "High", "Critical", "None"]),
+      details: z.string(),
+      recommendation: z.string(),
+    })),
   }),
   quality: z.object({
-    score: z.number().min(0).max(100),
-    testCoverage: z.number().min(0).max(100),
-    maintainability: z.number().min(0).max(100),
-    summary: z.string()
+    readmeScore: z.number().min(0).max(100),
+    readmeFeedback: z.string(),
+    readmeMissingSections: z.array(z.string()),
+    testFrameDetected: z.string().nullable(),
+    testsExplanation: z.string(),
+    setupFrictionLevel: z.enum(["Low", "Medium", "High"]),
+    setupFrictionReason: z.string(),
   }),
   market: z.object({
-    score: z.number().min(0).max(100),
-    stars: z.number().min(0),
-    forks: z.number().min(0),
-    activity: z.string().regex(/^(low|medium|high)$/),
-    summary: z.string()
-  }),
-  valuation: z.object({
-    replacementCost: z.number().min(0),
-    reliefFromRoyalty: z.number().min(0),
-    productivityDebt: z.number().min(0),
-    totalEstimate: z.number().min(0)
-  }),
-  oss: z.object({
-    licenses: z.array(z.any()),
-    conflicts: z.array(z.any()),
-    summary: z.string()
-  }),
-  architecture: z.object({
-    score: z.number().min(0).max(100),
-    complexity: z.string().regex(/^(low|medium|high)$/),
-    patterns: z.array(z.any()),
-    summary: z.string()
-  }),
-  iso5055: z.object({
-    reliability: z.number().min(0).max(100),
-    security: z.number().min(0).max(100),
-    maintainability: z.number().min(0).max(100),
-    performance: z.number().min(0).max(100)
+    trendAlignmentGrade: z.enum(["Rising Star", "Steady", "Declining Stack", "Experimental"]),
+    trendExplanation: z.string(),
+    benchmarks: z.object({
+      starRatingPercentile: z.number(),
+      releaseFrequency: z.enum(["High", "Medium", "Low"]),
+      activeContributorScore: z.enum(["Healthy", "Solo Maker", "Stagnant"]),
+    }),
+    competitors: z.array(z.object({
+      repoName: z.string(),
+      stars: z.number(),
+      advantages: z.array(z.string()),
+      weaknesses: z.array(z.string())
+    })),
   }),
   quickWins: z.array(z.object({
+    id: z.string(),
     title: z.string(),
+    severity: z.enum(["High", "Medium", "Low"]),
+    category: z.string(),
     description: z.string(),
-    effort: z.string().regex(/^(1h|1d|3d|1w)$/),
-    impact: z.string().regex(/^(high|medium|low)$/)
+    actionableSteps: z.string()
   })),
   roadmap: z.array(z.object({
-    phase: z.string(),
-    tasks: z.array(z.any()),
-    timelineWeeks: z.number().min(0)
-  }))
+    id: z.string(),
+    title: z.string(),
+    category: z.string(),
+    description: z.string(),
+    phase: z.enum(["Now", "Next", "Later"]),
+    effort: z.enum(["Small", "Medium", "Large"])
+  })),
+  valuation: z.object({
+    estimatedDeveloperHours: z.number(),
+    averageHourlyRate: z.number(),
+    replacementCostFMV: z.number(),
+    reliefFromRoyaltyValue: z.number(),
+    productivityWasteHeuristic: z.number(),
+    annualInterestDebtCost: z.number(),
+  }),
+  hotspots: z.array(z.object({
+    filePath: z.string(),
+    complexityScore: z.number(),
+    changeFrequency: z.enum(["High", "Medium", "Low"]),
+    churnPercent: z.number(),
+    riskRating: z.enum(["Critical", "High", "Medium", "Low"]),
+    recommendation: z.string(),
+  })),
+  ossRisk: z.object({
+    copyleftDetected: z.boolean(),
+    licenseConflictsCount: z.number(),
+    licensesFound: z.array(z.object({
+      name: z.string(),
+      verified: z.boolean(),
+      type: z.string(),
+      riskLevel: z.string(),
+      details: z.string(),
+    })),
+    legalAdviceSnippet: z.string(),
+  }),
+  architecture: z.object({
+    dependencyCouplingScore: z.number(),
+    circularImportsFound: z.number(),
+    architecturalDriftIndex: z.number(),
+    modularSpacingScore: z.number(),
+    structuralComplexityFeedback: z.string(),
+  }),
+  compliance: z.object({
+    iso5055Compliant: z.boolean(),
+    reliabilityScore: z.number(),
+    securityPracticesScore: z.number(),
+    maintainabilityPracticesScore: z.number(),
+    performanceScore: z.number(),
+    severeViolationsCount: z.number(),
+    certValidationId: z.string(),
+  }),
+  globalBenchmarkPercent: z.number(),
 });
 
 export interface GradeInput {
@@ -81,100 +128,83 @@ export interface GradeInput {
 }
 
 export class GradingService {
-  /**
-   * Grade a GitHub repository using Gemini AI
-   */
-  static async gradeRepo(input: GradeInput): Promise<HealthReport> {
-    try {
-      const prompt = this.buildGradingPrompt(input);
+  static async gradeRepo(input: GradeInput, repoData?: any): Promise<HealthReport> {
+    const prompt = this.buildGradingPrompt(input, repoData);
 
-      const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-      });
+    const response = await client.models.generateContent({
+      model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      contents: prompt,
+      config: { responseMimeType: "application/json", temperature: 0.7 },
+    });
 
-      const responseText = response.text ?? "";
-      if (!responseText) {
-        throw new Error("Empty response from Gemini");
-      }
+    const text = response.text ?? "";
+    if (!text) throw new Error("Empty response from Gemini");
 
-      // Parse JSON response from Gemini
-      const report = JSON.parse(responseText) as HealthReport;
-      return report;
-    } catch (error) {
-      console.error("Grading error:", error);
-      throw error;
-    }
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Could not parse JSON from Gemini response");
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const report = healthReportSchema.parse(parsed);
+    return report as HealthReport;
   }
 
-  /**
-   * Build the prompt for Gemini to grade a repo
-   */
-  private static buildGradingPrompt(input: GradeInput): string {
+  private static buildGradingPrompt(input: GradeInput, repoData?: any): string {
+    const dataSection = repoData ? `
+## Repository Data
+${JSON.stringify(repoData, null, 2)}
+` : "";
     return `
-You are an expert code auditor. Grade the GitHub repository "${input.owner}/${input.repo}" across multiple dimensions.
+You are an expert codebase auditor. Grade the GitHub repository "${input.owner}/${input.repo}".
+${dataSection}
 
-IMPORTANT: Return ONLY a valid JSON object matching this exact structure:
+Return ONLY valid JSON matching this exact schema:
 {
-  "score": <0-100>,
-  "grade": "<A|B|C|D|F>",
+  "repoOwner": string,
+  "repoName": string,
+  "overallScore": number,
+  "gradeCategory": string,
+  "mainLanguage": string,
+  "starsCount": number,
+  "forksCount": number,
+  "openIssuesCount": number,
+  "lastPushedAt": string,
+  "summary": string,
   "security": {
-    "score": <0-100>,
-    "findings": [<vulnerability objects>],
-    "summary": "<brief summary>"
+    "secretLeakDetected": boolean,
+    "secretsDetails": string[],
+    "vulnerabilityCount": number,
+    "highestSeverity": "Low"|"Medium"|"High"|"Critical"|"None",
+    "vulnerabilities": [{ "package": string, "severity": string, "details": string, "recommendation": string }]
   },
   "quality": {
-    "score": <0-100>,
-    "testCoverage": <0-100>,
-    "maintainability": <0-100>,
-    "summary": "<brief summary>"
+    "readmeScore": number,
+    "readmeFeedback": string,
+    "readmeMissingSections": string[],
+    "testFrameDetected": string | null,
+    "testsExplanation": string,
+    "setupFrictionLevel": "Low"|"Medium"|"High",
+    "setupFrictionReason": string
   },
   "market": {
-    "score": <0-100>,
-    "stars": <estimated>,
-    "forks": <estimated>,
-    "activity": "<low|medium|high>",
-    "summary": "<brief summary>"
+    "trendAlignmentGrade": "Rising Star"|"Steady"|"Declining Stack"|"Experimental",
+    "trendExplanation": string,
+    "benchmarks": { "starRatingPercentile": number, "releaseFrequency": "High"|"Medium"|"Low", "activeContributorScore": "Healthy"|"Solo Maker"|"Stagnant" },
+    "competitors": [{ "repoName": string, "stars": number, "advantages": string[], "weaknesses": string[] }]
   },
-  "valuation": {
-    "replacementCost": <$>,
-    "reliefFromRoyalty": <$>,
-    "productivityDebt": <$>,
-    "totalEstimate": <$>
-  },
-  "oss": {
-    "licenses": [],
-    "conflicts": [],
-    "summary": "<brief summary>"
-  },
-  "architecture": {
-    "score": <0-100>,
-    "complexity": "<low|medium|high>",
-    "patterns": [],
-    "summary": "<brief summary>"
-  },
-  "iso5055": {
-    "reliability": <0-100>,
-    "security": <0-100>,
-    "maintainability": <0-100>,
-    "performance": <0-100>
-  },
-  "quickWins": [],
-  "roadmap": []
+  "quickWins": [{ "id": string, "title": string, "severity": "High"|"Medium"|"Low", "category": string, "description": string, "actionableSteps": string }],
+  "roadmap": [{ "id": string, "title": string, "category": string, "description": string, "phase": "Now"|"Next"|"Later", "effort": "Small"|"Medium"|"Large" }],
+  "valuation": { "estimatedDeveloperHours": number, "averageHourlyRate": number, "replacementCostFMV": number, "reliefFromRoyaltyValue": number, "productivityWasteHeuristic": number, "annualInterestDebtCost": number },
+  "hotspots": [{ "filePath": string, "complexityScore": number, "changeFrequency": "High"|"Medium"|"Low", "churnPercent": number, "riskRating": "Critical"|"High"|"Medium"|"Low", "recommendation": string }],
+  "ossRisk": { "copyleftDetected": boolean, "licenseConflictsCount": number, "licensesFound": [{ "name": string, "verified": boolean, "type": string, "riskLevel": string, "details": string }], "legalAdviceSnippet": string },
+  "architecture": { "dependencyCouplingScore": number, "circularImportsFound": number, "architecturalDriftIndex": number, "modularSpacingScore": number, "structuralComplexityFeedback": string },
+  "compliance": { "iso5055Compliant": boolean, "reliabilityScore": number, "securityPracticesScore": number, "maintainabilityPracticesScore": number, "performanceScore": number, "severeViolationsCount": number, "certValidationId": string },
+  "globalBenchmarkPercent": number
 }
 
-Grade this repo based on public information available on GitHub:
-1. Security: Check for vulnerability disclosure, dependency auditing, SBOM
-2. Quality: Assess README, test coverage indicators, code organization
-3. Market: Estimate GitHub metrics (stars, forks, activity)
-4. Valuation: Calculate replacement cost, relief-from-royalty, productivity debt
-5. OSS: Identify licenses and potential conflicts
-6. Architecture: Analyze code patterns, complexity, design
-7. ISO 5055: Score reliability, security, maintainability, performance
-8. Quick Wins: Identify low-effort improvements
-9. Roadmap: Suggest prioritized 12-week roadmap
-
-Return ONLY valid JSON, no markdown, no code blocks.
+Rules:
+- Return ONLY raw JSON. No markdown, no code fences, no commentary.
+- If you cannot determine a value, use null for nullable fields, 0 for numbers, "" for strings, [] for arrays.
+- Do not invent data. If package.json was not fetched, say "Not retrieved" in explanations.
 `;
   }
 }

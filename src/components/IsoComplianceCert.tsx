@@ -12,16 +12,23 @@ export default function IsoComplianceCert({ compliance, repoOwner, repoName }: I
   const [certifying, setCertifying] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Fallback structures to keep visual design consistent
-  const activeCompliance = compliance || {
-    iso5055Compliant: true,
-    reliabilityScore: 88,
-    securityPracticesScore: 92,
-    maintainabilityPracticesScore: 84,
-    performanceScore: 89,
-    severeViolationsCount: 1,
-    certValidationId: `ISO-5055-6FF82B-2026`
-  };
+  if (!compliance) {
+    return (
+      <div id="iso-compliance-certification" className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 gap-2">
+          <div>
+            <h3 className="text-base font-bold text-white font-display">Standardised ISO/IEC 5055 Verification</h3>
+            <p className="text-xs text-slate-400">Compliance analysis not yet available for this scan.</p>
+          </div>
+        </div>
+        <div className="p-6 bg-slate-800/50 rounded-xl text-center text-slate-400 text-sm">
+          Compliance report will appear here once the scan completes.
+        </div>
+      </div>
+    );
+  }
+
+  const activeCompliance = compliance;
 
   const handleShareCert = () => {
     setCopied(true);

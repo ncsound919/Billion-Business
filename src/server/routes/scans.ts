@@ -8,6 +8,7 @@ import { authMiddleware } from "../middleware/auth.ts";
 import { scanLimitMiddleware, apiRateLimitMiddleware } from "../middleware/tenant.ts";
 import { query } from "../db/pool.ts";
 import { GradingService } from "../services/gradingService.ts";
+import { ComplianceService } from "../services/compliance/complianceService.ts";
 const { Router } = express;
 type Request = express.Request;
 type Response = express.Response;
@@ -55,8 +56,8 @@ router.post(
 
       const scan = scanRows[0];
 
-      // Grade the repo (async, but return immediately)
-      await gradeRepoAsync(scan.id, owner, repo, repoUrl, req.orgId);
+      // Grade the repo (fire-and-forget — response returns immediately with status "processing")
+      gradeRepoAsync(scan.id, owner, repo, repoUrl, req.orgId);
 
       res.status(201).json({
         id: scan.id,
@@ -199,22 +200,95 @@ async function gradeRepoAsync(
   orgId: string
 ) {
   try {
-    // Call Grading Service
-    const report = await GradingService.gradeRepo({
-      repoUrl,
-      owner,
-      repo,
-    });
+    const ghHeaders: Record<string, string> = {
+      "User-Agent": "Grader-App",
+      "Accept": "application/vnd.github+json",
+    };
+    if (process.env.GITHUB_TOKEN) {
+      ghHeaders["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
 
-    // Update scan with results
-    await query(
-      `UPDATE scans 
-        SET score = $1, grade_category = $2, report = $3, updated_at = NOW()
-        WHERE id = $4`,
-      [report.score, report.grade, JSON.stringify(report), scanId]
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const metaRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: ghHeaders,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (metaRes.status === 404) {
+      throw new Error(`Repository ${owner}/${repo} not found`);
+    }
+    if (metaRes.status === 403 || metaRes.status === 429) {
+      throw new Error("GitHub API rate limit exceeded");
+    }
+
+    const repoMeta = metaRes.ok ? await metaRes.json() : null;
+
+    let packageJsonStr = "";
+    let readmeStr = "";
+    let fileList: string[] = [];
+
+    if (repoMeta) {
+      const branches = ["main", "master", "dev"];
+      for (const branch of branches) {
+        const pkgRes = await fetch(
+          `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/package.json`,
+          { headers: ghHeaders }
+        );
+        if (pkgRes.ok) { packageJsonStr = await pkgRes.text(); break; }
+      }
+
+      for (const branch of branches) {
+        const readmeRes = await fetch(
+          `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/README.md`,
+          { headers: ghHeaders }
+        );
+        if (readmeRes.ok) { readmeStr = await readmeRes.text(); break; }
+      }
+
+      const defaultBranch = (repoMeta.default_branch as string) ?? "main";
+      const treeRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
+        { headers: ghHeaders }
+      );
+      if (treeRes.ok) {
+        const treeData = await treeRes.json() as { tree?: Array<{ path: string }> };
+        if (Array.isArray(treeData.tree)) {
+          fileList = treeData.tree.map((f) => f.path).slice(0, 80);
+        }
+      }
+    }
+
+    const report = await GradingService.gradeRepo(
+      { repoUrl, owner, repo },
+      { repoMeta, packageJsonStr, readmeStr, fileList }
     );
 
-    // Log usage
+    await query(
+      `UPDATE scans
+        SET score = $1, grade_category = $2, report = $3, updated_at = NOW()
+        WHERE id = $4`,
+      [report.overallScore, report.gradeCategory, JSON.stringify(report), scanId]
+    );
+
+    // Run ISO 5055 compliance analysis
+    try {
+      const complianceReport = ComplianceService.runCompliance(owner, repo, {
+        repoMeta: repoMeta as Record<string, unknown> | null,
+        packageJsonStr,
+        readmeStr,
+        fileList,
+      });
+      await query(
+        `UPDATE scans SET compliance_report = $1, updated_at = NOW() WHERE id = $2`,
+        [JSON.stringify(complianceReport), scanId]
+      );
+    } catch (complianceError) {
+      console.error(`Compliance analysis failed for scan ${scanId}:`, complianceError);
+    }
+
     await query(
       `INSERT INTO usage_log (org_id, action, resource, created_at)
         VALUES ($1, 'scan_completed', $2, NOW())`,
@@ -225,10 +299,9 @@ async function gradeRepoAsync(
   } catch (error) {
     console.error(`Error grading repo for scan ${scanId}:`, error);
 
-    // Update scan with error status
     try {
       await query(
-        `UPDATE scans 
+        `UPDATE scans
           SET grade_category = $1, report = $2, updated_at = NOW()
           WHERE id = $3`,
       [
@@ -245,5 +318,43 @@ async function gradeRepoAsync(
     }
   }
 }
+
+/**
+ * GET /api/v1/scans/:id/compliance
+ * Returns the ISO 5055 compliance report for a scan
+ */
+router.get("/:id/compliance", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    if (!req.orgId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const { id } = req.params;
+
+    const { rows } = await query(
+      `SELECT id, org_id, compliance_report FROM scans WHERE id = $1 AND org_id = $2`,
+      [id, req.orgId]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: "Scan not found" });
+    }
+
+    const compliance = rows[0].compliance_report
+      ? (typeof rows[0].compliance_report === "string"
+          ? JSON.parse(rows[0].compliance_report)
+          : rows[0].compliance_report)
+      : null;
+
+    if (!compliance) {
+      return res.status(404).json({ error: "Compliance report not yet available for this scan" });
+    }
+
+    res.json(compliance);
+  } catch (error) {
+    console.error("Get compliance error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 export default router;
