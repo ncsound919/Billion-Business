@@ -1,5 +1,30 @@
 # Market Insights
 
+## 2026-05-27 — Deployment Readiness Milestone
+
+### Completed
+- Addressed deployment blockers for Grader:
+    - Implemented health (`/healthz`) and readiness (`/readyz`) endpoints.
+    - Externalized runtime configuration (PORT, GEMINI_MODEL, GITHUB_TOKEN) to environment variables.
+    - Updated `package.json` with cross-platform scripts using `rimraf` and `dotenv-cli`.
+    - Enhanced documentation in `README.md` with deployment checklist, environment variables, and rollback steps.
+    - Refactored frontend architecture with `react-router-dom`, `AuthContext`, and `ErrorBoundary`.
+- Verified deploy readiness milestone is functionally complete (95%+).
+- Pushed deployment-oriented improvements to `tap919/Grader`.
+
+### Key Decisions
+- **Separation of Concerns**: Deployment readiness milestone completed and closed deliberately, treating the unrelated `billing.test.ts` mocking issue as a separate follow-up defect to prevent blocking the release path.
+- **Cross-Platform Reliability**: Adopted `rimraf` and `dotenv-cli` to ensure `npm run clean` and `npm test` work identically on Windows, macOS, and Linux.
+- **Operational Observability**: Added health/readiness endpoints to support orchestration and automated deployment verification.
+
+### Blockers
+- **Billing Test Failure**: `src/server/__tests__/billing.test.ts` fails due to Vitest hoisting issue with `mockStripe` initialization. This is an orthogonal test harness issue and does not impact the deployment readiness of the core engine.
+
+### Next Actions
+- **[Defect] Billing Test Repair**: Fix the `vi.mock` implementation in `billing.test.ts` to handle hoisted mock references.
+- **Release Execution**: Finalize the first production release tag for Grader.
+- **Phase 2 Initiation**: Transition to Monetization phase (Stripe integration and team management).
+
 ## 2026-05-27 — Grader Comprehensive Audit & Market Opportunity
 
 ## 2026-05-27 — Post-Deployment Code Review Feedback

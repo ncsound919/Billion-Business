@@ -54,6 +54,38 @@ app.get("/api/scans", (_req, res) => {
   res.json(localScanHistory);
 });
 
+// GET /healthz - basic health check
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
+// GET /readyz - readiness check
+app.get("/readyz", async (_req, res) => {
+  try {
+    // Check if we can initialize GenAI client (if API key is present)
+    if (process.env.GEMINI_API_KEY) {
+      // Just verify the client can be created - don't make actual API call
+      getGenAI();
+    }
+    
+    // Basic readiness - server is up and can process requests
+    res.status(200).json({ 
+      status: "ready", 
+      timestamp: new Date().toISOString(),
+      dependencies: {
+        gemini: !!process.env.GEMINI_API_KEY,
+        github: !!process.env.GITHUB_TOKEN || true // GitHub works without token but with lower limits
+      }
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: "not ready", 
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // POST /api/grade
 app.post("/api/grade", async (req, res) => {
   const { repoUrl } = req.body;

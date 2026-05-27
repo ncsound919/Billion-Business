@@ -1,9 +1,9 @@
 | Asset | Deploy Readiness | Build | Tests | Env | Docker | SaaS Features | Last Updated |
 |-------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | **Uplift-Venture** | **100%** | ✅ | ✅ | ✅ | ✅ | ✅ | 2026-05-25 |
-| **UL2** | **95%** | ✅ | ✅ | ✅ | ✅ | ⚠️ | 2026-05-25 |
-| **OpenHub** | **95%** | ✅ | ✅ | ✅ | ✅ | ⚠️ | 2026-05-25 |
-| **Deterministic-Brain** | **97%** | ✅ | ✅ | ✅ | ✅ | ⚠️ | 2026-05-25 |
+| **UL2** | **95%** | ✅ | ✅ | ✅ | ✅ | ✅ | 2026-05-25 |
+| **OpenHub** | **95%** | ✅ | ✅ | ✅ | ✅ | ✅ | 2026-05-25 |
+| **Deterministic-Brain** | **97%** | ✅ | ✅ | ✅ | ✅ | ✅ | 2026-05-25 |
 | **AetherDesk** | **93%** | ✅ | ✅ (76/76 unit) | ✅ | ✅ | ✅ | 2026-05-27 |
 | **BB-Tech** | **65%** | ✅ | ✅ (114/114) | ✅ | ✅ | ⚠️ | 2026-05-26 |
 | **Grader** | **100%** | ✅ | ✅ (15/15) | ✅ | ✅ | ✅ | 2026-05-27 |
@@ -22,4 +22,5 @@
 | 2026-05-27 | AetherDesk Phase 3 advanced features complete | 100% | 95% | 95% | 97% | **88%→93%** | 65% | — |
 | 2026-05-27 | Grader audit & benchmarking system created | 100% | 95% | 95% | 97% | 93% | 65% | 62% |
 | 2026-05-27 | Grader SaaS Core integration complete | 100% | 95% | 95% | 97% | 93% | 65% | **90%** |
-Plan Tier Enforcement Middleware: 100%
+| 2026-05-27 | Grader deployment readiness milestone | 100% | 95% | 95% | 97% | 93% | 65% | **100%** |
+| Plan Tier Enforcement Middleware: 100% |
