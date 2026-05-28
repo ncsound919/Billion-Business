@@ -209,7 +209,8 @@ async function startServer() {
 
 export { app };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const isMainModule = typeof require !== "undefined" && require.main === module;
+if (isMainModule) {
   startServer().catch((err) => {
     console.error("Failed to start server:", err);
     process.exit(1);

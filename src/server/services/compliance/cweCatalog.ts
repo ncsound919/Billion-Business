@@ -6,9 +6,6 @@
  */
 import path from "path";
 import fs from "fs";
-import { createRequire } from "module";
-
-const _require = createRequire(import.meta.url);
 
 export type CweDimension = "Reliability" | "Security" | "Performance" | "Maintainability";
 
@@ -260,7 +257,7 @@ const ISO_5055_CWES: Record<string, CweDimension> = {
 
 function loadDictionary(): Record<string, any> {
   try {
-    return _require("cwe-sdk/raw/cwe-dictionary.json");
+    return require("cwe-sdk/raw/cwe-dictionary.json");
   } catch {
     const p = path.join(process.cwd(), "node_modules", "cwe-sdk", "raw", "cwe-dictionary.json");
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, "utf-8"));
