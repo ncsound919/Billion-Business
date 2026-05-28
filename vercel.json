@@ -2,12 +2,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm ci",
-  "env": {
-    "VITE_API_URL": {
-      "description": "Backend API URL (e.g., https://grader-prod.up.railway.app)",
-      "required": true
-    }
-  },
   "git": {
     "deploymentEnabled": {
       "main": true
@@ -21,5 +15,15 @@
       "memory": 1024,
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
