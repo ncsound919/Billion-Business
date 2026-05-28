@@ -41,8 +41,27 @@ jobs:
       - name: Run tests
         run: npm test
         env:
+          # Database
+          DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
+          SKIP_SCHEMA_ON_BOOT: "true"
+          DB_POOL_MAX: "2"
+          # Auth
+          JWT_SECRET: ${{ secrets.JWT_SECRET_TEST }}
+          SESSION_SECRET: ${{ secrets.JWT_SECRET_TEST }}
+          # AI + GitHub API
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_TEST }}
+          GEMINI_MODEL: "gemini-2.5-flash"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GitHub OAuth
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID_TEST }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET_TEST }}
+          # Stripe
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY_TEST }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET_TEST }}
+          # App
+          FRONTEND_URL: "http://localhost:3000"
+          NODE_ENV: test
+          PORT: "3001"
 
   build:
     needs: [lint, test]
@@ -93,24 +112,26 @@ jobs:
 
       - name: Start server and verify health endpoints
         run: |
-          # Start server in background
           npm run start &
           SERVER_PID=$!
-          sleep 3
-          
-          # Check /healthz endpoint
-          HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/healthz)
-          echo "Health endpoint status: $HEALTH"
-          
-          # Check /readyz endpoint
-          READY=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/readyz)
-          echo "Readiness endpoint status: $READY"
-          
-          # Kill server
+          sleep 5
+          HEALTH=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:3000/healthz || echo "000")
+          echo "Health endpoint: $HEALTH"
+          READY=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:3000/readyz || echo "000")
+          echo "Readiness endpoint: $READY"
           kill $SERVER_PID 2>/dev/null || true
-          
-          # Verify both endpoints return 200
           [ "$HEALTH" = "200" ] && [ "$READY" = "200" ] && exit 0 || exit 1
         env:
           NODE_ENV: production
-          PORT: 3000
+          PORT: "3000"
+          DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
+          SKIP_SCHEMA_ON_BOOT: "true"
+          JWT_SECRET: ${{ secrets.JWT_SECRET_TEST }}
+          SESSION_SECRET: ${{ secrets.JWT_SECRET_TEST }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_TEST }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID_TEST }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET_TEST }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY_TEST }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET_TEST }}
+          FRONTEND_URL: "http://localhost:3000"
