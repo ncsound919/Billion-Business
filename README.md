@@ -1,5 +1,6 @@
 # Grader
 
+<!-- Deployed via Vercel -->
 An honest, data-backed codebase grading engine. Analyzes any public GitHub repository across security, quality, market fit, architecture, OSS licensing, compliance (ISO 5055), and valuation — powered by Google Gemini AI.
 
 Part of the **Billion Business** portfolio.
